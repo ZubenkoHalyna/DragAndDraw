@@ -11,7 +11,6 @@ import android.graphics.Canvas
 import android.os.Parcelable
 import android.os.Bundle
 import android.util.SparseArray
-import java.util.*
 
 
 class BoxDrawingView(context: Context,
@@ -22,6 +21,7 @@ class BoxDrawingView(context: Context,
     private val mBoxen = mutableListOf<Box>()
     private val mBoxPaint: Paint = DEFAULT_COLOR
     private val mBackgroundPaint: Paint = BACKGROUND_COLOR
+    private var multiTouchBox = Box.EMPTY
 
     companion object {
         private val TAG = "BoxDrawingView"
@@ -37,11 +37,12 @@ class BoxDrawingView(context: Context,
     override fun onDraw(canvas: Canvas) {
         canvas.drawPaint(mBackgroundPaint)  // Заполнение фона
         for (box in mBoxen) {
-            val left = Math.min(box.mOrigin.x, box.mCurrent.x)
-            val right = Math.max(box.mOrigin.x, box.mCurrent.x)
-            val top = Math.min(box.mOrigin.y, box.mCurrent.y)
-            val bottom = Math.max(box.mOrigin.y, box.mCurrent.y)
-            canvas.drawRect(left, top, right, bottom, mBoxPaint)
+            if (box.angle != 0.0f) {
+                canvas.rotate(-box.angle, box.rotationPoint.x, box.rotationPoint.y)
+            }
+            canvas.drawRect(box.left, box.top, box.right, box.bottom, mBoxPaint)
+            if (box.angle != 0.0f)
+                canvas.rotate(box.angle, box.rotationPoint.x, box.rotationPoint.y)
         }
     }
 
@@ -90,17 +91,30 @@ class BoxDrawingView(context: Context,
                     mCurrentBox.mCurrent = current
                     invalidate()
                 }
+                if (event.pointerCount > 1) {
+                    if (multiTouchBox == Box.EMPTY) {
+                        mCurrentBox.rotationPoint = PointF(event.getX(1), event.getY(1))
+                        multiTouchBox = Box(mCurrentBox.rotationPoint)
+                    }
+                    multiTouchBox.mCurrent = PointF(event.getX(1), event.getY(1))
+                    mCurrentBox.angle = calcRotationAngle(multiTouchBox)
+                }
             }
             MotionEvent.ACTION_UP -> {
                 action = "ACTION_UP"
                 mCurrentBox = Box.EMPTY
+                multiTouchBox = Box.EMPTY
             }
             MotionEvent.ACTION_CANCEL -> {
                 action = "ACTION_CANCEL"
                 mCurrentBox = Box.EMPTY
+                multiTouchBox = Box.EMPTY
             }
         }
-        Log.i(TAG, action + " at x=" + current.x + ", y=" + current.y)
+        Log.i(TAG, "$action at x=${event.x}, y=${event.y}")
+
         return true
     }
+
+    private fun calcRotationAngle(box: Box) = (box.dy/height + box.dx/width) * 180.0f
 }
